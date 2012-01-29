@@ -1,0 +1,209 @@
+The jQuery Deferred Object
+$.Deferred
+deferred.promise()
+deferred.resolve()
+deferred.reject()
+deferred.done()
+deferred.fail()
+deferred.then()
+deferred.always()
+$.when()
+
+
+Lets you form a queue of actions that need to happen after some asynchronous action
+
+
+___
+$.Deferred  - use to create a new Deferred object
+deferred.promise() - creates a promise which tells other functions when the async action is done
+deferred.resolve() - the asynchronous action was successful (may be a result)
+deferred.reject() - the asynchronous action was unsuccessful (may be information about why)
+deferred.done() - attach a callback for when the action was successful
+deferred.fail() - attach a callback for when the action was unsuccessful
+deferred.then() - attach the successful and unsuccessful calllbacks at the same time
+deferred.always() - attach a callback that will always execute, regardless of success
+$.when() - you add promises to this that must *all* be completed before any callbacks execute
+
+___
+whatever you pass alone with deferred.reject() and deferred.resolve() gets passed to *all* of the callbacks
+
+deferred.reject({ 
+  errorCode : 401,
+  errorMessage : "File not found"
+});
+
+deferred.resolve({
+  result : "some text",
+  code : 200
+});
+
+doneCallback = function ( deferredResult ) {
+  alert( deferredResult.result ); // alerts "some text"
+};
+
+failCallback = function ( deferredResult ) {
+  alert( deferredResult.errorMessage ); // alerts "File not found"
+};
+
+failCallback2 = function ( deferredResult ) {
+  alert( deferredResult.errorCode ); // alerts "401"
+};
+
+
+___
+Right now the way a lot of people do asynchronous actions: 
+
+var performAsyncStuff;
+
+performAsyncStuff = function ( ) {
+  $.ajax({
+    url : 'http://whateverurl.com/resource',
+    dataType : 'json',
+    error : function ( jqXHR, textStatus, errorThrown ) { alert('An error ocurred'); },
+    success : function ( json ) {
+        $('#element1').html(json.element1);
+        $('#element2').html(json.element2);
+    }
+  });
+};
+
+___
+But what if you have something that depends on two or more asynchronous actions?
+
+var performAsyncStuff2, price1, price2, totalPrice;
+
+performAsyncStuff2 = function ( ) {
+  $.ajax({
+    url : 'http://whateverurl.com/resource',
+    dataType : 'json',
+    error : function ( jqXHR, textStatus, errorThrown ) { alert('An error ocurred'); },
+    success : function ( json ) {
+        price1 = json.price;
+        $.ajax({
+          url : 'http://whateverurl.com/secondresource',
+          dataType : 'json',
+          error : function ( jqXHR, textStatus, errorThrown ) { alert('An error ocurred'); },
+          success : function ( json2 ) {
+            price2 = json2.price;
+            totalPrice = price1 + price2;
+          }
+        });
+    }
+  });
+};
+
+___
+It's already getting pretty convoluted, just imagine if there were even more actions.
+(At Sears, imagine needing to wait for 2 or more product searches to return and combine the results)
+Using Deferreds can *simplify* this
+
+var firstAjax, secondAjax, totalPrice;
+
+firstAjax = function ( ) {
+  var dfd = new $.Deferred();
+  $.ajax({
+    url : 'http://whateverurl.com/resource',
+    dataType : 'json',
+    error : function ( jqXHR, textStatus, errorThrown ) { dfd.reject( {jqXHR, textStatus, errorThrown} ); },
+    success : function ( json ) {
+        dfd.resolve(json);
+    }
+  });
+  return dfd.promise(); // MUST return the promise
+};
+
+secondAjax = function ( ) {
+  var dfd = new $.Deferred()
+  $.ajax({
+    url : 'http://whateverurl.com/secondresource',
+    dataType : 'json',
+    error : function ( jqXHR, textStatus, errorThrown ) { dfd.reject(); },
+    success : function ( json2 ) {
+      dfd.resolve(json2);
+    }
+  });
+  return dfd.promise()
+};
+
+$.when( firstAjax(), sencondAjax() )
+  .done( function (firstResult, secondResult) {
+    totalPrice = firstResult.price + secondResult.price;
+  })
+  .fail( function () { 
+    alert('it failed'); 
+  })
+  .always( function() {
+    alert('this gets executed after fail() or after done()');
+  });
+
+( talk about .then() )
+
+___
+You can also attach stuff much later on, if you need to make sure something happens *after* the asynchronous action
+
+var ajaxCall, savePromise;
+
+ajaxCall = function ( ) {
+  var dfd = new $.Deferred();
+  $.ajax({
+    url : 'http://whateverurl.com/resource',
+    dataType : 'json',
+    error : function ( jqXHR, textStatus, errorThrown ) { dfd.reject( {jqXHR, textStatus, errorThrown} ); },
+    success : function ( json ) {
+        dfd.resolve(json);
+    }
+  });
+  return dfd.promise();
+};
+
+savePromise = ajaxCall();  // savePromise = dfd.promise();
+savePromise.then( doneImmediately, failImmediately );
+dosomething();
+dosomethingelse();
+savePromise.done( attachLater ); // these callbacks will only get executed once ajaxCall returns (in the order they were added)
+savePromise.done( attachlater2 ); // if ajaxCall has already returned they get executed immediately
+
+
+___
+Really helps with controlling the flow of the application and gives you more *flexibility*
+
+___
+May be wondering how you might be able to *use* this
+
+___
+But......All of us *already* use the $.Deferred object all the time
+$.ajax() 
+(also $.get(), $.post(), $.getJSON()...)
+
+
+___
+$.ajax() already returns a deferred.promise()
+
+var ajaxPromise, doneCallback1, doneCallback2, failCallBack;
+
+doneCallback1 = function ( json ) {
+  // do something with the returned json here
+};
+
+doneCallback2 = function ( json ) {
+  // do something else with the returned json
+};
+
+failCallback = function ( jqXHR, textStatus, errorThrown ) {
+  // figure out why it failed
+};
+
+ajaxPromise = $.ajax({
+  url : 'http://whateverurl.com/resource',
+  dataType : 'json'
+});
+
+ajaxPromise
+  .done( doneCallback1, doneCallback2 )
+  .fail( failCallBack );
+
+
+http://api.jquery.com/category/deferred-object/
+http://msdn.microsoft.com/en-us/scriptjunkie/gg723713
+http://www.erichynds.com/jquery/using-deferreds-in-jquery/
+http://intridea.com/2011/2/8/fun-with-jquery-deferred?blog=company
